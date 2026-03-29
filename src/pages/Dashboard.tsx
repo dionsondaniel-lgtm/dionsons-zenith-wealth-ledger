@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useStore } from '../store/StoreContext';
 import { formatCurrency } from '../lib/utils';
-import { Wallet, TrendingDown, Activity, Lightbulb, Bell, Calendar, PieChart as PieChartIcon, Clock } from 'lucide-react';
+import { Wallet, TrendingDown, Activity, Lightbulb, Bell, Calendar, PieChart as PieChartIcon, Clock, Flame, History, CreditCard } from 'lucide-react';
 import { SummaryModal } from '../components/SummaryModal';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, LineChart, Line, Legend, PieChart, Pie, Cell } from 'recharts';
-import { addMonths, format, startOfDay, isBefore, isAfter, parseISO, addDays } from 'date-fns';
+import { addMonths, format, startOfDay, isBefore, isAfter, parseISO, addDays, formatDistanceToNow } from 'date-fns';
 import { motion, AnimatePresence } from 'motion/react';
 
 function LiveDateTime() {
@@ -49,7 +49,7 @@ function LiveDateTime() {
 }
 
 export function Dashboard() {
-  const { income, loans, settings } = useStore();
+  const { income, expenses, loans, settings, logs } = useStore();
   const [isSummaryOpen, setIsSummaryOpen] = useState(false);
 
   // Auto-open summary on load if there are overdue/upcoming payments
@@ -73,10 +73,17 @@ export function Dashboard() {
   }, [loans]);
 
   const totalIncome = income.reduce((sum, item) => sum + item.amount, 0);
+  const totalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0);
   
   const totalDebt = loans.reduce((sum, loan) => {
     return sum + loan.schedule.reduce((schSum, sch) => {
       return schSum + (sch.isPaid ? 0 : sch.principal + sch.interest);
+    }, 0);
+  }, 0);
+
+  const totalPenalties = loans.reduce((sum, loan) => {
+    return sum + loan.schedule.reduce((schSum, sch) => {
+      return schSum + (sch.isPaid && sch.penalty ? sch.penalty : 0);
     }, 0);
   }, 0);
 
@@ -117,16 +124,27 @@ export function Dashboard() {
       .filter(i => i.date.startsWith(currentMonthStr))
       .reduce((sum, i) => sum + i.amount, 0);
 
+    // Sum expenses for current month
+    const currentMonthExpenses = expenses
+      .filter(e => e.date.startsWith(currentMonthStr))
+      .reduce((sum, e) => sum + e.amount, 0);
+
     // Sum expected payments for current month
     const currentMonthPayments = loans.flatMap(l => l.schedule)
       .filter(s => !s.isPaid && s.dueDate.startsWith(currentMonthStr))
       .reduce((sum, s) => sum + s.amountDue, 0);
 
+    const currentMonthPenalties = loans.flatMap(l => l.schedule)
+      .filter(s => s.isPaid && s.datePaid?.startsWith(currentMonthStr) && s.penalty)
+      .reduce((sum, s) => sum + (s.penalty || 0), 0);
+
     return [
       {
         name: 'Current Month',
         Income: currentMonthIncome || totalIncome, // Fallback to total if no dates set
-        DebtPayments: currentMonthPayments
+        Expenses: currentMonthExpenses,
+        DebtPayments: currentMonthPayments,
+        Penalties: currentMonthPenalties
       }
     ];
   };
@@ -175,7 +193,7 @@ export function Dashboard() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6">
         {/* Total Income Card */}
         <div className="glass p-6 rounded-2xl relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
@@ -184,6 +202,17 @@ export function Dashboard() {
           <div className="relative z-10">
             <p className="text-sm font-medium text-muted-foreground mb-1">Total Income Recorded</p>
             <h3 className="text-3xl font-bold text-foreground">{formatCurrency(totalIncome, settings.currency)}</h3>
+          </div>
+        </div>
+
+        {/* Total Expenses Card */}
+        <div className="glass p-6 rounded-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity text-orange-500">
+            <CreditCard size={64} />
+          </div>
+          <div className="relative z-10">
+            <p className="text-sm font-medium text-muted-foreground mb-1">Total Expenses</p>
+            <h3 className="text-3xl font-bold text-foreground">{formatCurrency(totalExpenses, settings.currency)}</h3>
           </div>
         </div>
 
@@ -218,6 +247,17 @@ export function Dashboard() {
                 style={{ width: `${Math.min(dtiRatio, 100)}%` }}
               />
             </div>
+          </div>
+        </div>
+
+        {/* Total Penalties Card */}
+        <div className="glass p-6 rounded-2xl relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity text-amber-500">
+            <Flame size={64} />
+          </div>
+          <div className="relative z-10">
+            <p className="text-sm font-medium text-muted-foreground mb-1">Total Penalties Paid</p>
+            <h3 className="text-3xl font-bold text-foreground">{formatCurrency(totalPenalties, settings.currency)}</h3>
           </div>
         </div>
       </div>
@@ -305,9 +345,38 @@ export function Dashboard() {
                 />
                 <Legend />
                 <Bar dataKey="Income" fill="#10b981" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                <Bar dataKey="Expenses" name="Expenses" fill="#f97316" radius={[4, 4, 0, 0]} maxBarSize={60} />
                 <Bar dataKey="DebtPayments" name="Expected Payments" fill="#f43f5e" radius={[4, 4, 0, 0]} maxBarSize={60} />
+                <Bar dataKey="Penalties" name="Penalties Paid" fill="#f59e0b" radius={[4, 4, 0, 0]} maxBarSize={60} />
               </BarChart>
             </ResponsiveContainer>
+          </div>
+        </div>
+
+        {/* Recent Activities */}
+        <div className="glass p-6 rounded-2xl flex flex-col lg:col-span-3">
+          <div className="flex items-center space-x-2 mb-6">
+            <History className="text-primary" size={20} />
+            <h3 className="text-lg font-semibold">Recent Activities</h3>
+          </div>
+          <div className="flex-1 overflow-y-auto max-h-[300px] pr-2 space-y-4">
+            {logs.length > 0 ? (
+              logs.map(log => (
+                <div key={log.id} className="flex items-start justify-between border-b border-border/50 pb-4 last:border-0 last:pb-0">
+                  <div>
+                    <p className="font-medium text-sm text-foreground">{log.action}</p>
+                    {log.details && <p className="text-xs text-muted-foreground mt-0.5">{log.details}</p>}
+                  </div>
+                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-4">
+                    {formatDistanceToNow(parseISO(log.timestamp), { addSuffix: true })}
+                  </span>
+                </div>
+              ))
+            ) : (
+              <div className="h-full flex items-center justify-center text-muted-foreground text-sm">
+                No recent activities recorded
+              </div>
+            )}
           </div>
         </div>
       </div>

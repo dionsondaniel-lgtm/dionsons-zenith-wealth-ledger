@@ -4,7 +4,7 @@ import { GoogleGenAI } from '@google/genai';
 import { Send, Bot, User, AlertTriangle, Sparkles, Loader2, Trash2 } from 'lucide-react';
 
 export function AIInsights() {
-  const { income, loans } = useStore();
+  const { income, expenses, loans } = useStore();
   const [messages, setMessages] = useState<{ role: 'user' | 'ai', content: string }[]>([]);
   const [input, setInput] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -24,6 +24,7 @@ export function AIInsights() {
 
   const generateFinancialSummary = () => {
     const totalIncome = income.reduce((sum, item) => sum + item.amount, 0);
+    const totalExpenses = expenses.reduce((sum, item) => sum + item.amount, 0);
     const totalDebt = loans.reduce((sum, loan) => {
       return sum + loan.schedule.reduce((schSum, sch) => {
         return schSum + (sch.isPaid ? 0 : sch.principal + sch.interest);
@@ -38,6 +39,7 @@ export function AIInsights() {
 
     return JSON.stringify({
       totalMonthlyIncome: totalIncome,
+      totalMonthlyExpenses: totalExpenses,
       totalOutstandingDebt: totalDebt,
       debtToIncomeRatio: totalIncome > 0 ? (totalDebt / totalIncome) * 100 : 0,
       upcomingPayments,
@@ -152,7 +154,7 @@ export function AIInsights() {
             </div>
             <h3 className="text-2xl font-bold mb-2">Ready to analyze your finances</h3>
             <p className="text-muted-foreground max-w-md mb-8">
-              I can analyze your income, debts, and payment schedules to provide a comprehensive financial health grade and actionable advice.
+              I can analyze your income, expenses, debts, and payment schedules to provide a comprehensive financial health grade and actionable advice.
             </p>
             <button 
               onClick={handleConsultAI}

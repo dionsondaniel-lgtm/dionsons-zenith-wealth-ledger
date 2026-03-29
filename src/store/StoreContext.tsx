@@ -6,6 +6,24 @@ import { addMonths, addDays, format } from 'date-fns';
 export type ThemeMode = 'light' | 'dark';
 export type ThemeColor = 'indigo' | 'emerald' | 'rose';
 export type CurrencyCode = 'PHP' | 'USD' | 'EUR' | 'GBP' | 'JPY' | 'AUD' | 'CAD' | 'SGD';
+export type CalculationMethod = 'Amortized' | 'FlatRate' | 'AdvanceInterest';
+export type ExpenseCategory = 'House Rent' | 'Electricity' | 'WiFi' | 'Groceries' | 'Water' | 'Other';
+
+export interface ActivityLog {
+  id: string;
+  timestamp: string;
+  action: string;
+  details?: string;
+}
+
+export interface Expense {
+  id: string;
+  date: string;
+  category: ExpenseCategory;
+  name: string;
+  amount: number;
+  notes?: string;
+}
 
 export interface Settings {
   mode: ThemeMode;
@@ -46,17 +64,22 @@ export interface Loan {
   paymentTerms: 'Monthly' | 'Bi-Monthly';
   durationMonths: number;
   customDueDate?: string;
+  calculationMethod?: CalculationMethod;
   schedule: PaymentSchedule[];
 }
 
 interface AppState {
   settings: Settings;
   income: IncomeSource[];
+  expenses: Expense[];
   loans: Loan[];
   updateSettings: (settings: Partial<Settings>) => void;
   addIncome: (income: Omit<IncomeSource, 'id'>) => void;
   updateIncome: (id: string, income: Partial<IncomeSource>) => void;
   deleteIncome: (id: string) => void;
+  addExpense: (expense: Omit<Expense, 'id'>) => void;
+  updateExpense: (id: string, expense: Partial<Expense>) => void;
+  deleteExpense: (id: string) => void;
   addLoan: (loan: Omit<Loan, 'id' | 'schedule'>) => void;
   updateLoan: (id: string, loan: Partial<Omit<Loan, 'id' | 'schedule'>>) => void;
   updateLoanSchedule: (loanId: string, scheduleId: string, payment: Partial<PaymentSchedule>) => void;
@@ -65,6 +88,8 @@ interface AppState {
   importData: (data: string) => void;
   exportData: () => string;
   resetData: () => void;
+  logs: ActivityLog[];
+  logActivity: (action: string, details?: string) => void;
 }
 
 const defaultSettings: Settings = {
@@ -79,7 +104,16 @@ const StoreContext = createContext<AppState | undefined>(undefined);
 export function StoreProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useLocalStorage<Settings>('zenith_settings', defaultSettings);
   const [income, setIncome] = useLocalStorage<IncomeSource[]>('zenith_income', []);
+  const [expenses, setExpenses] = useLocalStorage<Expense[]>('zenith_expenses', []);
   const [loans, setLoans] = useLocalStorage<Loan[]>('zenith_loans', []);
+  const [logs, setLogs] = useLocalStorage<ActivityLog[]>('zenith_logs', []);
+
+  const logActivity = (action: string, details?: string) => {
+    setLogs(prev => [
+      { id: uuidv4(), timestamp: new Date().toISOString(), action, details },
+      ...prev
+    ].slice(0, 50));
+  };
 
   useEffect(() => {
     const root = window.document.documentElement;
@@ -105,14 +139,32 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const addIncome = (newIncome: Omit<IncomeSource, 'id'>) => {
     setIncome((prev) => [...prev, { ...newIncome, id: uuidv4() }]);
+    logActivity('Added Income', `Recorded ${newIncome.name}`);
   };
 
   const updateIncome = (id: string, updatedIncome: Partial<IncomeSource>) => {
     setIncome((prev) => prev.map((inc) => (inc.id === id ? { ...inc, ...updatedIncome } : inc)));
+    logActivity('Updated Income', `Modified income record`);
   };
 
   const deleteIncome = (id: string) => {
     setIncome((prev) => prev.filter((inc) => inc.id !== id));
+    logActivity('Deleted Income', `Removed an income record`);
+  };
+
+  const addExpense = (newExpense: Omit<Expense, 'id'>) => {
+    setExpenses((prev) => [...prev, { ...newExpense, id: uuidv4() }]);
+    logActivity('Added Expense', `Recorded ${newExpense.name} (${newExpense.category})`);
+  };
+
+  const updateExpense = (id: string, updatedExpense: Partial<Expense>) => {
+    setExpenses((prev) => prev.map((exp) => (exp.id === id ? { ...exp, ...updatedExpense } : exp)));
+    logActivity('Updated Expense', `Modified expense record`);
+  };
+
+  const deleteExpense = (id: string) => {
+    setExpenses((prev) => prev.filter((exp) => exp.id !== id));
+    logActivity('Deleted Expense', `Removed an expense record`);
   };
 
   const generateSchedule = (
@@ -121,7 +173,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     dateApplied: string,
     terms: 'Monthly' | 'Bi-Monthly',
     durationMonths: number,
-    customDueDate?: string
+    customDueDate?: string,
+    calculationMethod: CalculationMethod = 'AdvanceInterest'
   ): PaymentSchedule[] => {
     const schedule: PaymentSchedule[] = [];
     
@@ -140,14 +193,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const periodsPerYear = terms === 'Monthly' ? 12 : 24;
     const totalPeriods = terms === 'Monthly' ? durationMonths : durationMonths * 2;
     const ratePerPeriod = annualRate / 100 / periodsPerYear;
+    const totalFlatInterest = principal * ratePerPeriod * totalPeriods;
     
-    let paymentAmount = 0;
-    if (ratePerPeriod === 0) {
-      paymentAmount = principal / totalPeriods;
-    } else {
-      paymentAmount = (principal * ratePerPeriod) / (1 - Math.pow(1 + ratePerPeriod, -totalPeriods));
-    }
-
     let balance = principal;
     let currentDate = new Date(dateApplied);
 
@@ -159,8 +206,28 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         currentDate = addDays(currentDate, 15);
       }
 
-      const interestPayment = balance * ratePerPeriod;
-      const principalPayment = paymentAmount - interestPayment;
+      let interestPayment = 0;
+      let principalPayment = 0;
+      let paymentAmount = 0;
+
+      if (ratePerPeriod === 0) {
+        paymentAmount = principal / totalPeriods;
+        principalPayment = paymentAmount;
+        interestPayment = 0;
+      } else if (calculationMethod === 'Amortized') {
+        paymentAmount = (principal * ratePerPeriod) / (1 - Math.pow(1 + ratePerPeriod, -totalPeriods));
+        interestPayment = balance * ratePerPeriod;
+        principalPayment = paymentAmount - interestPayment;
+      } else if (calculationMethod === 'FlatRate') {
+        interestPayment = totalFlatInterest / totalPeriods;
+        principalPayment = principal / totalPeriods;
+        paymentAmount = principalPayment + interestPayment;
+      } else if (calculationMethod === 'AdvanceInterest') {
+        interestPayment = 0; // Paid upfront
+        principalPayment = principal / totalPeriods;
+        paymentAmount = principalPayment;
+      }
+
       balance -= principalPayment;
 
       schedule.push({
@@ -188,9 +255,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       newLoan.dateApplied,
       newLoan.paymentTerms,
       newLoan.durationMonths,
-      newLoan.customDueDate
+      newLoan.customDueDate,
+      newLoan.calculationMethod
     );
     setLoans((prev) => [...prev, { ...newLoan, id: uuidv4(), schedule }]);
+    logActivity('Added Loan', `Recorded loan from ${newLoan.lenderName}`);
   };
 
   const updateLoan = (id: string, updatedLoan: Partial<Omit<Loan, 'id' | 'schedule'>>) => {
@@ -206,7 +275,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         updatedLoan.dateApplied !== undefined ||
         updatedLoan.paymentTerms !== undefined ||
         updatedLoan.durationMonths !== undefined ||
-        updatedLoan.customDueDate !== undefined;
+        updatedLoan.customDueDate !== undefined ||
+        updatedLoan.calculationMethod !== undefined;
 
       if (termsChanged) {
         const annualRate = merged.interestRateType === 'Monthly' 
@@ -219,7 +289,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           merged.dateApplied,
           merged.paymentTerms,
           merged.durationMonths,
-          merged.customDueDate
+          merged.customDueDate,
+          merged.calculationMethod
         );
         
         return { ...merged, schedule: newSchedule };
@@ -227,6 +298,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       
       return merged;
     }));
+    logActivity('Updated Loan', `Modified loan details`);
   };
 
   const updateLoanSchedule = (loanId: string, scheduleId: string, payment: Partial<PaymentSchedule>) => {
@@ -241,6 +313,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         };
       })
     );
+    logActivity('Updated Schedule', `Modified a payment schedule entry`);
   };
 
   const recordPayment = (loanId: string, scheduleId: string, payment: Partial<PaymentSchedule>) => {
@@ -289,10 +362,12 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       
       return { ...loan, schedule: updatedSchedule };
     }));
+    logActivity('Recorded Payment', `Marked a payment as paid`);
   };
 
   const deleteLoan = (id: string) => {
     setLoans((prev) => prev.filter((loan) => loan.id !== id));
+    logActivity('Deleted Loan', `Removed a loan record`);
   };
 
   const importData = (dataStr: string) => {
@@ -300,7 +375,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       const data = JSON.parse(dataStr);
       if (data.settings) setSettings(data.settings);
       if (data.income) setIncome(data.income);
+      if (data.expenses) setExpenses(data.expenses);
       if (data.loans) setLoans(data.loans);
+      logActivity('Imported Data', `Restored data from backup`);
     } catch (error) {
       console.error('Failed to import data', error);
       throw new Error('Invalid JSON data format');
@@ -308,14 +385,18 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   };
 
   const exportData = () => {
-    return JSON.stringify({ settings, income, loans }, null, 2);
+    logActivity('Exported Data', `Created a data backup`);
+    return JSON.stringify({ settings, income, expenses, loans }, null, 2);
   };
 
   const resetData = () => {
     setSettings(defaultSettings);
     setIncome([]);
+    setExpenses([]);
     setLoans([]);
+    setLogs([]);
     sessionStorage.removeItem('zenith_seen_summary');
+    logActivity('Reset Data', `Cleared all application data`);
   };
 
   return (
@@ -323,11 +404,15 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       value={{
         settings,
         income,
+        expenses,
         loans,
         updateSettings,
         addIncome,
         updateIncome,
         deleteIncome,
+        addExpense,
+        updateExpense,
+        deleteExpense,
         addLoan,
         updateLoan,
         updateLoanSchedule,
@@ -336,6 +421,8 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         importData,
         exportData,
         resetData,
+        logs,
+        logActivity,
       }}
     >
       {children}

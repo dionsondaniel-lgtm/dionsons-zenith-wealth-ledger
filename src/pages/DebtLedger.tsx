@@ -21,6 +21,7 @@ export function DebtLedger() {
     paymentTerms: 'Monthly',
     durationMonths: 12,
     customDueDate: '',
+    calculationMethod: 'AdvanceInterest',
   });
 
   const [paymentData, setPaymentData] = useState({
@@ -45,6 +46,7 @@ export function DebtLedger() {
         paymentTerms: 'Monthly',
         durationMonths: 12,
         customDueDate: '',
+        calculationMethod: 'AdvanceInterest',
       });
     }
   };
@@ -62,6 +64,7 @@ export function DebtLedger() {
         paymentTerms: editModal.paymentTerms,
         durationMonths: editModal.durationMonths,
         customDueDate: editModal.customDueDate,
+        calculationMethod: editModal.calculationMethod,
       });
       setEditModal(null);
     }
@@ -220,6 +223,24 @@ export function DebtLedger() {
               </div>
             )}
             
+            <div className="lg:col-span-3 space-y-2 mt-2">
+              <label className="text-sm font-medium text-muted-foreground">Calculation Method</label>
+              <select 
+                className="w-full bg-background border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary/50"
+                value={newLoan.calculationMethod || 'AdvanceInterest'}
+                onChange={e => setNewLoan({...newLoan, calculationMethod: e.target.value as any})}
+              >
+                <option value="AdvanceInterest">Advance Interest (Default) - Deduct interest upfront</option>
+                <option value="FlatRate">Flat Rate - Divide principal and total interest equally</option>
+                <option value="Amortized">Amortized (Diminishing) - Interest on remaining balance</option>
+              </select>
+              <div className="text-xs text-muted-foreground mt-2 space-y-1.5 bg-muted/30 p-3 rounded-lg border border-border">
+                <p><strong className="text-foreground">Advance Interest:</strong> Interest is subtracted from the loan proceeds upfront. Scheduled payments divide the principal equally.</p>
+                <p><strong className="text-foreground">Flat Rate:</strong> Total interest is computed upfront. Scheduled payments divide both principal and total interest equally.</p>
+                <p><strong className="text-foreground">Amortized:</strong> Standard bank method. Interest decreases over time as the principal balance goes down.</p>
+              </div>
+            </div>
+
             <div className="lg:col-span-3 flex space-x-2 mt-4">
               <button type="submit" className="bg-primary text-primary-foreground px-6 py-2 rounded-lg hover:opacity-90 transition-opacity">
                 Generate Schedule
@@ -317,6 +338,8 @@ export function DebtLedger() {
                             <th className="px-4 py-3">Amount Due</th>
                             <th className="px-4 py-3 hidden md:table-cell">Principal</th>
                             <th className="px-4 py-3 hidden md:table-cell">Interest</th>
+                            <th className="px-4 py-3 hidden lg:table-cell">Date Paid</th>
+                            <th className="px-4 py-3 hidden lg:table-cell">Penalty</th>
                             <th className="px-4 py-3">Status</th>
                             <th className="px-4 py-3 rounded-r-lg text-right">Action</th>
                           </tr>
@@ -333,6 +356,12 @@ export function DebtLedger() {
                               <td className="px-4 py-3 font-bold">{formatCurrency(sch.amountDue, settings.currency)}</td>
                               <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">{formatCurrency(sch.principal, settings.currency)}</td>
                               <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">{formatCurrency(sch.interest, settings.currency)}</td>
+                              <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">
+                                {sch.isPaid && sch.datePaid ? sch.datePaid : '-'}
+                              </td>
+                              <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">
+                                {sch.isPaid && sch.penalty ? formatCurrency(sch.penalty, settings.currency) : '-'}
+                              </td>
                               <td className="px-4 py-3">
                                 {sch.isPaid ? (
                                   <span className="inline-flex items-center space-x-1 text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full text-xs font-medium">
@@ -559,6 +588,24 @@ export function DebtLedger() {
                   />
                 </div>
               )}
+
+              <div className="md:col-span-2 space-y-2 mt-2">
+                <label className="text-sm font-medium text-muted-foreground">Calculation Method</label>
+                <select 
+                  className="w-full bg-background border border-border rounded-lg px-3 py-2 focus:ring-2 focus:ring-primary/50"
+                  value={editModal.calculationMethod || 'AdvanceInterest'}
+                  onChange={e => setEditModal({...editModal, calculationMethod: e.target.value as any})}
+                >
+                  <option value="AdvanceInterest">Advance Interest (Default) - Deduct interest upfront</option>
+                  <option value="FlatRate">Flat Rate - Divide principal and total interest equally</option>
+                  <option value="Amortized">Amortized (Diminishing) - Interest on remaining balance</option>
+                </select>
+                <div className="text-xs text-muted-foreground mt-2 space-y-1.5 bg-muted/30 p-3 rounded-lg border border-border">
+                  <p><strong className="text-foreground">Advance Interest:</strong> Interest is subtracted from the loan proceeds upfront. Scheduled payments divide the principal equally.</p>
+                  <p><strong className="text-foreground">Flat Rate:</strong> Total interest is computed upfront. Scheduled payments divide both principal and total interest equally.</p>
+                  <p><strong className="text-foreground">Amortized:</strong> Standard bank method. Interest decreases over time as the principal balance goes down.</p>
+                </div>
+              </div>
 
               <div className="md:col-span-2 flex space-x-3 pt-4">
                 <button type="submit" className="flex-1 bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-medium">

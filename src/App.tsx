@@ -3,6 +3,7 @@ import { StoreProvider } from './store/StoreContext';
 import { Layout } from './components/Layout';
 import { Dashboard } from './pages/Dashboard';
 import { Income } from './pages/Income';
+import { Expenses } from './pages/Expenses';
 import { DebtLedger } from './pages/DebtLedger';
 import { AIInsights } from './pages/AIInsights';
 import { Settings } from './pages/Settings';
@@ -14,6 +15,7 @@ export default function App() {
     switch (currentPage) {
       case 'dashboard': return <Dashboard />;
       case 'income': return <Income />;
+      case 'expenses': return <Expenses />;
       case 'debt': return <DebtLedger />;
       case 'ai': return <AIInsights />;
       case 'settings': return <Settings />;
