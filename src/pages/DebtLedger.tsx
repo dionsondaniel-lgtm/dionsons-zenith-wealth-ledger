@@ -92,7 +92,7 @@ export function DebtLedger() {
 
   const openPaymentModal = (loanId: string, schedule: PaymentSchedule) => {
     setPaymentData({
-      datePaid: new Date().toISOString().split('T')[0],
+      datePaid: schedule.dueDate,
       amountPaid: schedule.amountDue,
       penalty: 0,
       notes: '',
@@ -330,16 +330,85 @@ export function DebtLedger() {
                 {isExpanded && (
                   <div className="border-t border-border bg-background/50 p-6 animate-in slide-in-from-top-2">
                     <h4 className="font-semibold mb-4 text-sm uppercase tracking-wider text-muted-foreground">Payment Schedule</h4>
-                    <div className="overflow-x-auto">
-                      <table className="w-full text-sm text-left">
+                    
+                    {/* Mobile Card Layout */}
+                    <div className="space-y-4 md:hidden">
+                      {loan.schedule.map((sch, idx) => (
+                        <div key={sch.id} className="bg-background p-4 rounded-xl border border-border shadow-sm space-y-3">
+                          <div className="flex justify-between items-center border-b border-border/50 pb-2">
+                            <div className="font-medium flex items-center space-x-2">
+                              <span className="text-muted-foreground text-xs bg-muted px-2 py-0.5 rounded-full">#{idx + 1}</span>
+                              <span>{sch.dueDate}</span>
+                            </div>
+                            <div className="font-bold text-primary">{formatCurrency(sch.amountDue, settings.currency)}</div>
+                          </div>
+                          
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div>
+                              <span className="text-muted-foreground text-xs block mb-0.5">Principal</span>
+                              <span className="font-medium">{formatCurrency(sch.principal, settings.currency)}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground text-xs block mb-0.5">Interest</span>
+                              <span className="font-medium">{formatCurrency(sch.interest, settings.currency)}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground text-xs block mb-0.5">Date Paid</span>
+                              <span className="font-medium">{sch.isPaid && sch.datePaid ? sch.datePaid : '-'}</span>
+                            </div>
+                            <div>
+                              <span className="text-muted-foreground text-xs block mb-0.5">Penalty</span>
+                              <span className="font-medium">{sch.isPaid && sch.penalty ? formatCurrency(sch.penalty, settings.currency) : '-'}</span>
+                            </div>
+                          </div>
+                          
+                          <div className="flex justify-between items-center pt-3 border-t border-border/50 mt-2">
+                            <div>
+                              {sch.isPaid ? (
+                                <span className="inline-flex items-center space-x-1 text-emerald-500 bg-emerald-500/10 px-2 py-1 rounded-full text-xs font-medium">
+                                  <CheckCircle2 size={14} />
+                                  <span>Paid</span>
+                                </span>
+                              ) : (
+                                <span className="inline-flex items-center space-x-1 text-amber-500 bg-amber-500/10 px-2 py-1 rounded-full text-xs font-medium">
+                                  <Circle size={14} />
+                                  <span>Pending</span>
+                                </span>
+                              )}
+                            </div>
+                            <div>
+                              {!sch.isPaid ? (
+                                <button 
+                                  onClick={() => openPaymentModal(loan.id, sch)}
+                                  className="text-xs bg-primary text-primary-foreground px-4 py-2 rounded-lg hover:opacity-90 transition-opacity font-medium shadow-sm"
+                                >
+                                  Pay
+                                </button>
+                              ) : (
+                                <button 
+                                  onClick={() => updateLoanSchedule(loan.id, sch.id, { isPaid: false })}
+                                  className="text-xs text-muted-foreground hover:text-foreground transition-colors underline decoration-dotted px-2 py-1"
+                                >
+                                  Undo
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Desktop Table Layout */}
+                    <div className="hidden md:block overflow-x-auto pb-2">
+                      <table className="w-full text-sm text-left whitespace-nowrap">
                         <thead className="text-xs text-muted-foreground uppercase bg-muted/50 rounded-lg">
                           <tr>
                             <th className="px-4 py-3 rounded-l-lg">Due Date</th>
                             <th className="px-4 py-3">Amount Due</th>
-                            <th className="px-4 py-3 hidden md:table-cell">Principal</th>
-                            <th className="px-4 py-3 hidden md:table-cell">Interest</th>
-                            <th className="px-4 py-3 hidden lg:table-cell">Date Paid</th>
-                            <th className="px-4 py-3 hidden lg:table-cell">Penalty</th>
+                            <th className="px-4 py-3">Principal</th>
+                            <th className="px-4 py-3">Interest</th>
+                            <th className="px-4 py-3">Date Paid</th>
+                            <th className="px-4 py-3">Penalty</th>
                             <th className="px-4 py-3">Status</th>
                             <th className="px-4 py-3 rounded-r-lg text-right">Action</th>
                           </tr>
@@ -354,12 +423,12 @@ export function DebtLedger() {
                                 </div>
                               </td>
                               <td className="px-4 py-3 font-bold">{formatCurrency(sch.amountDue, settings.currency)}</td>
-                              <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">{formatCurrency(sch.principal, settings.currency)}</td>
-                              <td className="px-4 py-3 hidden md:table-cell text-muted-foreground">{formatCurrency(sch.interest, settings.currency)}</td>
-                              <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">
+                              <td className="px-4 py-3 text-muted-foreground">{formatCurrency(sch.principal, settings.currency)}</td>
+                              <td className="px-4 py-3 text-muted-foreground">{formatCurrency(sch.interest, settings.currency)}</td>
+                              <td className="px-4 py-3 text-muted-foreground">
                                 {sch.isPaid && sch.datePaid ? sch.datePaid : '-'}
                               </td>
-                              <td className="px-4 py-3 hidden lg:table-cell text-muted-foreground">
+                              <td className="px-4 py-3 text-muted-foreground">
                                 {sch.isPaid && sch.penalty ? formatCurrency(sch.penalty, settings.currency) : '-'}
                               </td>
                               <td className="px-4 py-3">

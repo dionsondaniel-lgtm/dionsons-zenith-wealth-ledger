@@ -196,14 +196,31 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     const totalFlatInterest = principal * ratePerPeriod * totalPeriods;
     
     let balance = principal;
-    let currentDate = new Date(dateApplied);
+    
+    // Parse dateApplied as local time to avoid timezone shifts
+    const [yearStr, monthStr, dayStr] = dateApplied.split('-');
+    let currentDate = new Date(parseInt(yearStr), parseInt(monthStr) - 1, parseInt(dayStr));
 
     for (let i = 1; i <= totalPeriods; i++) {
       if (terms === 'Monthly') {
         currentDate = addMonths(currentDate, 1);
       } else {
-        // Bi-monthly: roughly every 15 days
-        currentDate = addDays(currentDate, 15);
+        // Bi-monthly: 15th and 30th (or end of Feb)
+        const day = currentDate.getDate();
+        const month = currentDate.getMonth();
+        const year = currentDate.getFullYear();
+        
+        const lastDayOfFeb = new Date(year, month + 1, 0).getDate();
+        
+        if (day < 15) {
+          currentDate = new Date(year, month, 15);
+        } else if (month === 1 && day < lastDayOfFeb) {
+          currentDate = new Date(year, month, lastDayOfFeb); // End of Feb
+        } else if (month !== 1 && day < 30) {
+          currentDate = new Date(year, month, 30);
+        } else {
+          currentDate = new Date(year, month + 1, 15);
+        }
       }
 
       let interestPayment = 0;

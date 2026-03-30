@@ -15,7 +15,7 @@ export default defineConfig(({mode}) => {
         includeAssets: ['icon.svg'],
         manifest: {
           name: 'Zenith Wealth Ledger',
-          short_name: 'Zenith',
+          short_name: 'D Zenith',
           description: 'Professional-grade Financial PWA',
           theme_color: '#ffffff',
           icons: [
