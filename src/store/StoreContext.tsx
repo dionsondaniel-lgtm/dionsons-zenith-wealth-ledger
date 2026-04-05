@@ -25,6 +25,16 @@ export interface Expense {
   notes?: string;
 }
 
+export interface PasswordEntry {
+  id: string;
+  name: string;
+  username: string;
+  password: string;
+  dateAdded: string;
+  dateModified: string;
+  notes?: string;
+}
+
 export interface Settings {
   mode: ThemeMode;
   color: ThemeColor;
@@ -73,6 +83,7 @@ interface AppState {
   income: IncomeSource[];
   expenses: Expense[];
   loans: Loan[];
+  passwords: PasswordEntry[];
   updateSettings: (settings: Partial<Settings>) => void;
   addIncome: (income: Omit<IncomeSource, 'id'>) => void;
   updateIncome: (id: string, income: Partial<IncomeSource>) => void;
@@ -80,6 +91,9 @@ interface AppState {
   addExpense: (expense: Omit<Expense, 'id'>) => void;
   updateExpense: (id: string, expense: Partial<Expense>) => void;
   deleteExpense: (id: string) => void;
+  addPassword: (password: Omit<PasswordEntry, 'id' | 'dateAdded' | 'dateModified'>) => void;
+  updatePassword: (id: string, password: Partial<PasswordEntry>) => void;
+  deletePassword: (id: string) => void;
   addLoan: (loan: Omit<Loan, 'id' | 'schedule'>) => void;
   updateLoan: (id: string, loan: Partial<Omit<Loan, 'id' | 'schedule'>>) => void;
   updateLoanSchedule: (loanId: string, scheduleId: string, payment: Partial<PaymentSchedule>) => void;
@@ -106,6 +120,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const [income, setIncome] = useLocalStorage<IncomeSource[]>('zenith_income', []);
   const [expenses, setExpenses] = useLocalStorage<Expense[]>('zenith_expenses', []);
   const [loans, setLoans] = useLocalStorage<Loan[]>('zenith_loans', []);
+  const [passwords, setPasswords] = useLocalStorage<PasswordEntry[]>('zenith_passwords', []);
   const [logs, setLogs] = useLocalStorage<ActivityLog[]>('zenith_logs', []);
 
   const logActivity = (action: string, details?: string) => {
@@ -165,6 +180,22 @@ export function StoreProvider({ children }: { children: ReactNode }) {
   const deleteExpense = (id: string) => {
     setExpenses((prev) => prev.filter((exp) => exp.id !== id));
     logActivity('Deleted Expense', `Removed an expense record`);
+  };
+
+  const addPassword = (newPassword: Omit<PasswordEntry, 'id' | 'dateAdded' | 'dateModified'>) => {
+    const now = new Date().toISOString();
+    setPasswords((prev) => [...prev, { ...newPassword, id: uuidv4(), dateAdded: now, dateModified: now }]);
+    logActivity('Added Password', `Saved credentials for ${newPassword.name}`);
+  };
+
+  const updatePassword = (id: string, updatedPassword: Partial<PasswordEntry>) => {
+    setPasswords((prev) => prev.map((pwd) => (pwd.id === id ? { ...pwd, ...updatedPassword, dateModified: new Date().toISOString() } : pwd)));
+    logActivity('Updated Password', `Modified credentials for a saved account`);
+  };
+
+  const deletePassword = (id: string) => {
+    setPasswords((prev) => prev.filter((pwd) => pwd.id !== id));
+    logActivity('Deleted Password', `Removed saved credentials`);
   };
 
   const generateSchedule = (
@@ -394,6 +425,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       if (data.income) setIncome(data.income);
       if (data.expenses) setExpenses(data.expenses);
       if (data.loans) setLoans(data.loans);
+      if (data.passwords) setPasswords(data.passwords);
       logActivity('Imported Data', `Restored data from backup`);
     } catch (error) {
       console.error('Failed to import data', error);
@@ -403,7 +435,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
 
   const exportData = () => {
     logActivity('Exported Data', `Created a data backup`);
-    return JSON.stringify({ settings, income, expenses, loans }, null, 2);
+    return JSON.stringify({ settings, income, expenses, loans, passwords }, null, 2);
   };
 
   const resetData = () => {
@@ -411,6 +443,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
     setIncome([]);
     setExpenses([]);
     setLoans([]);
+    setPasswords([]);
     setLogs([]);
     sessionStorage.removeItem('zenith_seen_summary');
     logActivity('Reset Data', `Cleared all application data`);
@@ -423,6 +456,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         income,
         expenses,
         loans,
+        passwords,
         updateSettings,
         addIncome,
         updateIncome,
@@ -430,6 +464,9 @@ export function StoreProvider({ children }: { children: ReactNode }) {
         addExpense,
         updateExpense,
         deleteExpense,
+        addPassword,
+        updatePassword,
+        deletePassword,
         addLoan,
         updateLoan,
         updateLoanSchedule,

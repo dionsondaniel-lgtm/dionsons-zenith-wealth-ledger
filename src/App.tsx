@@ -5,6 +5,7 @@ import { Dashboard } from './pages/Dashboard';
 import { Income } from './pages/Income';
 import { Expenses } from './pages/Expenses';
 import { DebtLedger } from './pages/DebtLedger';
+import { PasswordLedger } from './pages/PasswordLedger';
 import { AIInsights } from './pages/AIInsights';
 import { Settings } from './pages/Settings';
 
@@ -17,6 +18,7 @@ export default function App() {
       case 'income': return <Income />;
       case 'expenses': return <Expenses />;
       case 'debt': return <DebtLedger />;
+      case 'passwords': return <PasswordLedger />;
       case 'ai': return <AIInsights />;
       case 'settings': return <Settings />;
       default: return <Dashboard />;

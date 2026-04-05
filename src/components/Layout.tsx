@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { LayoutDashboard, Wallet, Receipt, Sparkles, Settings as SettingsIcon, HelpCircle, CreditCard } from 'lucide-react';
+import { LayoutDashboard, Wallet, Receipt, Sparkles, Settings as SettingsIcon, HelpCircle, CreditCard, Key } from 'lucide-react';
 import { cn } from '../lib/utils';
 import { useStore } from '../store/StoreContext';
 import { HelpModal } from './HelpModal';
@@ -19,6 +19,7 @@ export function Layout({ children, currentPage, onNavigate }: LayoutProps) {
     { id: 'income', label: 'Income', icon: Wallet },
     { id: 'expenses', label: 'Expenses', icon: CreditCard },
     { id: 'debt', label: 'Debt Ledger', icon: Receipt },
+    { id: 'passwords', label: 'Passwords', icon: Key },
     { id: 'ai', label: 'AI Insights', icon: Sparkles },
     { id: 'settings', label: 'Settings', icon: SettingsIcon },
   ];
